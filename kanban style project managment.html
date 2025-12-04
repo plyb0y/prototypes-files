@@ -1,0 +1,1633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FlowBoard – Project Management Board</title>
+
+  <!-- Tailwind CSS via CDN (v4 browser runtime) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  <style>
+    .scrollbar-thin {
+      scrollbar-width: thin;
+      scrollbar-color: #475569 #020617;
+    }
+    .scrollbar-thin::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .scrollbar-thin::-webkit-scrollbar-track {
+      background: #020617;
+    }
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+      background-color: #475569;
+      border-radius: 9999px;
+    }
+    .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+      background-color: #64748b;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100">
+  <div class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="sticky top-0 z-20 border-b border-slate-800 bg-slate-950/80 backdrop-blur">
+      <div class="flex items-center gap-3 px-4 py-3">
+        <div class="flex items-center gap-3">
+          <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-sky-500 to-emerald-400 text-sm font-bold text-white shadow-lg shadow-indigo-500/40">
+            FB
+          </div>
+          <div>
+            <h1 class="text-base font-semibold tracking-tight text-slate-50">FlowBoard</h1>
+            <p class="text-[11px] text-slate-400">Kanban-style project management</p>
+          </div>
+        </div>
+        <div class="mx-3 flex-1">
+          <label class="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-1.5 text-xs text-slate-400 shadow-inner">
+            <span class="text-slate-500">🔍</span>
+            <input
+              id="globalSearchInput"
+              type="search"
+              placeholder="Search tasks, assignees, tags"
+              class="flex-1 bg-transparent text-xs text-slate-100 outline-none placeholder:text-slate-500"
+            />
+            <span class="hidden rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-500 sm:inline">
+              Ctrl + K
+            </span>
+          </label>
+        </div>
+        <div class="hidden items-center gap-4 sm:flex">
+          <div class="text-right">
+            <p class="text-[11px] uppercase tracking-[0.16em] text-slate-400">Overall progress</p>
+            <p id="headerProgressLabel" class="mt-0.5 text-xs font-medium text-slate-100">0 of 0 tasks done</p>
+            <div class="mt-1 h-1.5 w-40 overflow-hidden rounded-full bg-slate-800">
+              <div
+                id="headerProgressBar"
+                class="h-full rounded-full bg-gradient-to-r from-indigo-400 via-sky-400 to-emerald-400"
+                style="width: 0%"
+              ></div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-xs font-semibold text-slate-950">
+              AJ
+            </div>
+            <div class="text-xs leading-tight">
+              <p class="font-medium text-slate-100">Alex Johnson</p>
+              <p class="text-[10px] text-slate-400">You</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main layout -->
+    <div class="flex flex-1 overflow-hidden">
+      <!-- Sidebar -->
+      <aside
+        id="sidebar"
+        class="hidden w-72 flex-col gap-4 border-r border-slate-800 bg-slate-950/80 p-4 scrollbar-thin md:flex overflow-y-auto"
+      >
+        <!-- Projects -->
+        <section>
+          <div class="flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-slate-500">
+            <h2 class="font-medium">Projects</h2>
+            <span class="rounded-full border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[10px] text-slate-300">Demo</span>
+          </div>
+          <div id="projectList" class="mt-2 space-y-1"></div>
+        </section>
+
+        <!-- Filters -->
+        <section class="mt-4">
+          <div class="flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-slate-500">
+            <h2 class="font-medium">Filters</h2>
+            <button
+              type="button"
+              data-clear-filters
+              class="text-[10px] text-slate-400 underline-offset-2 hover:text-slate-100 hover:underline"
+            >
+              Reset
+            </button>
+          </div>
+          <div class="mt-3 space-y-4">
+            <div>
+              <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-300">Priority</p>
+              <div id="filterPriority" class="mt-2"></div>
+            </div>
+            <div>
+              <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-300">Due date</p>
+              <div id="filterDue" class="mt-2"></div>
+            </div>
+            <div>
+              <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-300">Assignees</p>
+              <div id="filterAssignees" class="mt-2"></div>
+            </div>
+            <div id="filterMyTasks" class="border-t border-slate-800 pt-2"></div>
+          </div>
+        </section>
+      </aside>
+
+      <!-- Main content -->
+      <main class="flex flex-1 flex-col overflow-hidden">
+        <!-- Project summary -->
+        <section class="border-b border-slate-800 bg-slate-950/60 px-4 py-3">
+          <div id="projectSummaryBar" class="flex items-center justify-between gap-3"></div>
+        </section>
+
+        <!-- Board -->
+        <section class="flex-1 overflow-x-auto overflow-y-hidden">
+          <div id="boardColumns" class="flex h-full min-w-[960px] gap-4 p-4 pb-6"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Task detail overlay -->
+  <div
+    id="taskDetailOverlay"
+    class="fixed inset-0 z-30 hidden items-stretch justify-end bg-slate-950/60 backdrop-blur-sm"
+  >
+    <div
+      id="taskDetailPanel"
+      class="flex h-full w-full max-w-md flex-col border-l border-slate-800 bg-slate-900"
+    >
+      <header class="flex items-start justify-between gap-3 border-b border-slate-800 px-4 py-3">
+        <div>
+          <p
+            id="taskDetailProjectName"
+            class="text-[11px] uppercase tracking-[0.18em] text-slate-500"
+          >
+            Project
+          </p>
+          <h2 id="taskDetailTitle" class="mt-1 text-base font-semibold text-slate-50">
+            Task title
+          </h2>
+        </div>
+        <div class="flex flex-col items-end gap-2">
+          <select
+            id="taskDetailStatusSelect"
+            class="rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-100 outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            <option value="backlog">Backlog</option>
+            <option value="in-progress">In Progress</option>
+            <option value="review">Review</option>
+            <option value="done">Done</option>
+          </select>
+          <button
+            id="taskDetailCloseBtn"
+            type="button"
+            class="text-[11px] text-slate-400 hover:text-slate-100"
+          >
+            Close
+          </button>
+        </div>
+      </header>
+      <div class="scrollbar-thin flex-1 space-y-6 overflow-y-auto px-4 py-4 text-xs">
+        <section id="taskDetailMetaSection">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                Due date
+              </label>
+              <input
+                id="taskDetailDueInput"
+                type="date"
+                class="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              />
+              <p
+                id="taskDetailDueMeta"
+                class="mt-1 text-[11px] text-slate-500"
+              ></p>
+            </div>
+            <div>
+              <label class="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                Priority
+              </label>
+              <select
+                id="taskDetailPrioritySelect"
+                class="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div class="flex items-center justify-between">
+            <h3 class="text-[11px] uppercase tracking-[0.16em] text-slate-400">Assignees</h3>
+          </div>
+          <div id="taskDetailAssignees" class="mt-2 flex flex-wrap gap-1.5"></div>
+        </section>
+
+        <section>
+          <label
+            for="taskDetailDescription"
+            class="text-[11px] uppercase tracking-[0.16em] text-slate-400"
+          >
+            Description
+          </label>
+          <textarea
+            id="taskDetailDescription"
+            rows="4"
+            class="mt-2 w-full rounded-md border border-slate-800 bg-slate-950 px-2.5 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:ring-1 focus:ring-indigo-500"
+          ></textarea>
+        </section>
+
+        <section class="border-t border-slate-800 pt-4">
+          <div class="flex items-center justify-between">
+            <h3 class="text-[11px] uppercase tracking-[0.16em] text-slate-400">Activity</h3>
+          </div>
+          <div id="taskDetailComments" class="mt-3 space-y-3"></div>
+          <form id="taskDetailCommentForm" class="mt-3 space-y-2">
+            <textarea
+              id="taskDetailCommentInput"
+              rows="2"
+              placeholder="Add a comment for your team..."
+              class="w-full rounded-md border border-slate-800 bg-slate-950 px-2.5 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:ring-1 focus:ring-indigo-500"
+            ></textarea>
+            <div class="flex items-center justify-between">
+              <p class="text-[10px] text-slate-500">
+                Press Enter to send, Shift+Enter for a new line.
+              </p>
+              <button
+                type="submit"
+                class="inline-flex items-center gap-1 rounded-md bg-indigo-500 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-400"
+              >
+                Post
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const statuses = [
+        { id: 'backlog', label: 'Backlog', description: 'Ideas, requests, and unprioritized work.' },
+        { id: 'in-progress', label: 'In Progress', description: 'Currently being worked on.' },
+        { id: 'review', label: 'Review', description: 'Awaiting review, QA, or approval.' },
+        { id: 'done', label: 'Done', description: 'Shipped and completed tasks.' }
+      ];
+
+      const members = [
+        { id: 'u1', name: 'Alex Johnson', initials: 'AJ', colorClass: 'bg-emerald-500' },
+        { id: 'u2', name: 'Maria Chen', initials: 'MC', colorClass: 'bg-sky-500' },
+        { id: 'u3', name: 'Priya Singh', initials: 'PS', colorClass: 'bg-rose-500' },
+        { id: 'u4', name: 'David Kim', initials: 'DK', colorClass: 'bg-amber-500' },
+        { id: 'u5', name: 'Jordan Lee', initials: 'JL', colorClass: 'bg-indigo-500' }
+      ];
+
+      const priorityOrder = { low: 0, medium: 1, high: 2, urgent: 3 };
+
+      const priorityConfig = {
+        low: {
+          label: 'Low',
+          pillClasses: 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30'
+        },
+        medium: {
+          label: 'Medium',
+          pillClasses: 'bg-sky-500/10 text-sky-300 border border-sky-500/30'
+        },
+        high: {
+          label: 'High',
+          pillClasses: 'bg-amber-500/10 text-amber-300 border border-amber-500/40'
+        },
+        urgent: {
+          label: 'Urgent',
+          pillClasses: 'bg-rose-500/10 text-rose-200 border border-rose-500/50'
+        }
+      };
+
+      const state = {
+        projects: createSeedProjects(),
+        activeProjectId: 'p1',
+        currentUserId: 'u1',
+        filters: {
+          priorities: new Set(),
+          due: 'all',
+          assigneeId: null,
+          onlyMine: false
+        },
+        searchQuery: '',
+        selectedTaskId: null,
+        draggingTaskId: null
+      };
+
+      // DOM references
+      let sidebarEl,
+        projectListEl,
+        filterPriorityEl,
+        filterDueEl,
+        filterAssigneesEl,
+        filterMyTasksEl,
+        boardColumnsEl,
+        summaryBarEl,
+        headerProgressLabelEl,
+        headerProgressBarEl,
+        globalSearchInputEl,
+        overlayEl,
+        detailProjectNameEl,
+        detailTitleEl,
+        detailStatusSelectEl,
+        detailCloseBtnEl,
+        detailDueInputEl,
+        detailDueMetaEl,
+        detailPrioritySelectEl,
+        detailDescriptionEl,
+        detailAssigneesEl,
+        detailCommentsEl,
+        detailCommentFormEl,
+        detailCommentInputEl;
+
+      document.addEventListener('DOMContentLoaded', () => {
+        cacheDom();
+        attachEventListeners();
+        renderAll();
+      });
+
+      function cacheDom() {
+        sidebarEl = document.getElementById('sidebar');
+        projectListEl = document.getElementById('projectList');
+        filterPriorityEl = document.getElementById('filterPriority');
+        filterDueEl = document.getElementById('filterDue');
+        filterAssigneesEl = document.getElementById('filterAssignees');
+        filterMyTasksEl = document.getElementById('filterMyTasks');
+
+        boardColumnsEl = document.getElementById('boardColumns');
+        summaryBarEl = document.getElementById('projectSummaryBar');
+
+        headerProgressLabelEl = document.getElementById('headerProgressLabel');
+        headerProgressBarEl = document.getElementById('headerProgressBar');
+
+        globalSearchInputEl = document.getElementById('globalSearchInput');
+
+        overlayEl = document.getElementById('taskDetailOverlay');
+        detailProjectNameEl = document.getElementById('taskDetailProjectName');
+        detailTitleEl = document.getElementById('taskDetailTitle');
+        detailStatusSelectEl = document.getElementById('taskDetailStatusSelect');
+        detailCloseBtnEl = document.getElementById('taskDetailCloseBtn');
+        detailDueInputEl = document.getElementById('taskDetailDueInput');
+        detailDueMetaEl = document.getElementById('taskDetailDueMeta');
+        detailPrioritySelectEl = document.getElementById('taskDetailPrioritySelect');
+        detailDescriptionEl = document.getElementById('taskDetailDescription');
+        detailAssigneesEl = document.getElementById('taskDetailAssignees');
+        detailCommentsEl = document.getElementById('taskDetailComments');
+        detailCommentFormEl = document.getElementById('taskDetailCommentForm');
+        detailCommentInputEl = document.getElementById('taskDetailCommentInput');
+      }
+
+      function attachEventListeners() {
+        // Global search
+        if (globalSearchInputEl) {
+          globalSearchInputEl.addEventListener('input', (event) => {
+            state.searchQuery = event.target.value || '';
+            renderBoard();
+            renderSummary();
+          });
+        }
+
+        // Keyboard shortcut for search: Ctrl/Cmd + K
+        document.addEventListener('keydown', (event) => {
+          if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+            event.preventDefault();
+            if (globalSearchInputEl) {
+              globalSearchInputEl.focus();
+              globalSearchInputEl.select();
+            }
+          }
+        });
+
+        // Sidebar interactions via delegation
+        if (sidebarEl) {
+          sidebarEl.addEventListener('click', (event) => {
+            const projectBtn = event.target.closest('[data-project-id]');
+            if (projectBtn) {
+              const projectId = projectBtn.getAttribute('data-project-id');
+              if (projectId && projectId !== state.activeProjectId) {
+                state.activeProjectId = projectId;
+                state.selectedTaskId = null;
+                closeTaskDetail(false);
+                renderAll();
+              }
+              return;
+            }
+
+            const priorityBtn = event.target.closest('[data-priority-filter]');
+            if (priorityBtn) {
+              const priority = priorityBtn.getAttribute('data-priority-filter');
+              togglePriorityFilter(priority);
+              renderFilters();
+              renderBoard();
+              renderSummary();
+              return;
+            }
+
+            const assigneeBtn = event.target.closest('[data-assignee-filter]');
+            if (assigneeBtn) {
+              const memberId = assigneeBtn.getAttribute('data-assignee-filter') || null;
+              if (!memberId) {
+                state.filters.assigneeId = null;
+              } else {
+                state.filters.assigneeId =
+                  state.filters.assigneeId === memberId ? null : memberId;
+              }
+              renderFilters();
+              renderBoard();
+              renderSummary();
+              return;
+            }
+
+            const clearBtn = event.target.closest('[data-clear-filters]');
+            if (clearBtn) {
+              resetFilters();
+              renderFilters();
+              renderBoard();
+              renderSummary();
+            }
+          });
+
+          sidebarEl.addEventListener('change', (event) => {
+            const target = event.target;
+            if (target.matches('[data-filter-due]')) {
+              state.filters.due = target.value || 'all';
+              renderBoard();
+              renderSummary();
+            } else if (target.matches('[data-filter-my-tasks]')) {
+              state.filters.onlyMine = target.checked;
+              renderBoard();
+              renderSummary();
+            }
+          });
+        }
+
+        // Board interactions
+        if (boardColumnsEl) {
+          boardColumnsEl.addEventListener('click', (event) => {
+            const addBtn = event.target.closest('[data-add-task]');
+            if (addBtn) {
+              const status = addBtn.getAttribute('data-add-task');
+              if (status) handleAddTask(status);
+              return;
+            }
+            const card = event.target.closest('[data-task-id]');
+            if (card) {
+              const taskId = card.getAttribute('data-task-id');
+              if (taskId) openTaskDetail(taskId);
+            }
+          });
+
+          // Drag & drop
+          boardColumnsEl.addEventListener('dragstart', (event) => {
+            const card = event.target.closest('.task-card');
+            if (!card) return;
+            const taskId = card.getAttribute('data-task-id');
+            if (!taskId) return;
+            state.draggingTaskId = taskId;
+            if (event.dataTransfer) {
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', taskId);
+            }
+            card.classList.add('opacity-60', 'ring-2', 'ring-indigo-500/60');
+          });
+
+          boardColumnsEl.addEventListener('dragend', (event) => {
+            const card = event.target.closest('.task-card');
+            if (card) {
+              card.classList.remove('opacity-60', 'ring-2', 'ring-indigo-500/60');
+            }
+            state.draggingTaskId = null;
+          });
+
+          boardColumnsEl.addEventListener('dragover', (event) => {
+            const column = event.target.closest('.board-column');
+            if (!column) return;
+            event.preventDefault();
+            if (event.dataTransfer) {
+              event.dataTransfer.dropEffect = 'move';
+            }
+          });
+
+          boardColumnsEl.addEventListener('drop', (event) => {
+            const column = event.target.closest('.board-column');
+            if (!column) return;
+            event.preventDefault();
+            const status = column.getAttribute('data-status');
+            const taskId =
+              state.draggingTaskId ||
+              (event.dataTransfer && event.dataTransfer.getData('text/plain'));
+            if (status && taskId) {
+              moveTaskToStatus(taskId, status);
+            }
+            state.draggingTaskId = null;
+          });
+        }
+
+        // Detail overlay events
+        if (overlayEl) {
+          overlayEl.addEventListener('click', (event) => {
+            if (event.target === overlayEl) {
+              closeTaskDetail(true);
+            }
+          });
+        }
+
+        if (detailCloseBtnEl) {
+          detailCloseBtnEl.addEventListener('click', () => closeTaskDetail(true));
+        }
+
+        if (detailStatusSelectEl) {
+          detailStatusSelectEl.addEventListener('change', (event) => {
+            if (!state.selectedTaskId) return;
+            const status = event.target.value;
+            const task = findSelectedTask();
+            if (task && statuses.some((s) => s.id === status)) {
+              task.status = status;
+              renderBoard();
+              renderSummary();
+            }
+          });
+        }
+
+        if (detailPrioritySelectEl) {
+          detailPrioritySelectEl.addEventListener('change', (event) => {
+            if (!state.selectedTaskId) return;
+            const task = findSelectedTask();
+            if (task) {
+              task.priority = event.target.value;
+              renderBoard();
+              renderSummary();
+              renderTaskDetail();
+            }
+          });
+        }
+
+        if (detailDueInputEl) {
+          detailDueInputEl.addEventListener('change', (event) => {
+            if (!state.selectedTaskId) return;
+            const task = findSelectedTask();
+            if (task) {
+              const value = event.target.value;
+              task.dueDate = value || null;
+              renderBoard();
+              renderSummary();
+              renderTaskDetail();
+            }
+          });
+        }
+
+        if (detailDescriptionEl) {
+          detailDescriptionEl.addEventListener('blur', (event) => {
+            if (!state.selectedTaskId) return;
+            const task = findSelectedTask();
+            if (task) {
+              task.description = event.target.value || '';
+              renderBoard();
+              renderSummary();
+            }
+          });
+        }
+
+        if (detailAssigneesEl) {
+          detailAssigneesEl.addEventListener('click', (event) => {
+            const chip = event.target.closest('[data-member-id]');
+            if (!chip || !state.selectedTaskId) return;
+            const memberId = chip.getAttribute('data-member-id');
+            const task = findSelectedTask();
+            if (!task) return;
+            task.assigneeIds = task.assigneeIds || [];
+            const idx = task.assigneeIds.indexOf(memberId);
+            if (idx === -1) {
+              task.assigneeIds.push(memberId);
+            } else {
+              task.assigneeIds.splice(idx, 1);
+            }
+            renderBoard();
+            renderTaskDetail();
+            renderSummary();
+          });
+        }
+
+        if (detailCommentFormEl && detailCommentInputEl) {
+          detailCommentFormEl.addEventListener('submit', (event) => {
+            event.preventDefault();
+            submitComment();
+          });
+
+          detailCommentInputEl.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault();
+              submitComment();
+            }
+          });
+        }
+      }
+
+      // Seed data
+      function createSeedProjects() {
+        const today = new Date();
+        function addDays(n) {
+          const d = new Date(today);
+          d.setDate(d.getDate() + n);
+          return d.toISOString().slice(0, 10); // YYYY-MM-DD
+        }
+
+        return [
+          {
+            id: 'p1',
+            name: 'Website Redesign',
+            description: 'Revamp marketing site and design system.',
+            tasks: [
+              {
+                id: 't1',
+                title: 'Audit current site & analytics',
+                description:
+                  'Review key funnels, drop-off points, and current content performance.',
+                status: 'backlog',
+                priority: 'medium',
+                dueDate: addDays(3),
+                assigneeIds: ['u1', 'u2'],
+                comments: [
+                  {
+                    id: 'c1',
+                    authorId: 'u2',
+                    text: 'I added a heatmap report from last quarter.',
+                    createdAt: new Date(today.getTime() - 1000 * 60 * 60 * 20).toISOString()
+                  }
+                ],
+                checklist: { completed: 1, total: 3 },
+                createdAt: today.toISOString()
+              },
+              {
+                id: 't2',
+                title: 'Define target personas',
+                description:
+                  'Collaborate with product marketing to finalize 3 primary personas.',
+                status: 'in-progress',
+                priority: 'high',
+                dueDate: addDays(1),
+                assigneeIds: ['u3'],
+                comments: [],
+                checklist: { completed: 2, total: 4 },
+                createdAt: today.toISOString()
+              },
+              {
+                id: 't3',
+                title: 'Create homepage wireframes',
+                description:
+                  'Initial low-fidelity sketches for hero, value props, and social proof.',
+                status: 'in-progress',
+                priority: 'urgent',
+                dueDate: addDays(0),
+                assigneeIds: ['u1', 'u4'],
+                comments: [
+                  {
+                    id: 'c2',
+                    authorId: 'u4',
+                    text: 'Wireframe v2 ready for review in Figma.',
+                    createdAt: new Date(today.getTime() - 1000 * 60 * 30).toISOString()
+                  }
+                ],
+                checklist: { completed: 3, total: 5 },
+                createdAt: today.toISOString()
+              },
+              {
+                id: 't4',
+                title: 'Accessibility pass',
+                description:
+                  'Ensure contrast, keyboard navigation, and ARIA attributes.',
+                status: 'review',
+                priority: 'high',
+                dueDate: addDays(5),
+                assigneeIds: ['u2'],
+                comments: [],
+                checklist: { completed: 4, total: 6 },
+                createdAt: today.toISOString()
+              },
+              {
+                id: 't5',
+                title: 'Finalize launch checklist',
+                description:
+                  'QA environments, redirects, tracking, and rollback strategy.',
+                status: 'done',
+                priority: 'medium',
+                dueDate: addDays(-2),
+                assigneeIds: ['u1', 'u5'],
+                comments: [
+                  {
+                    id: 'c3',
+                    authorId: 'u5',
+                    text: 'Launch checklist signed off by ops.',
+                    createdAt: new Date(today.getTime() - 1000 * 60 * 60 * 48).toISOString()
+                  }
+                ],
+                checklist: { completed: 6, total: 6 },
+                createdAt: today.toISOString()
+              }
+            ]
+          },
+          {
+            id: 'p2',
+            name: 'Mobile App Onboarding',
+            description: 'Simplify signup and first-run experience.',
+            tasks: [
+              {
+                id: 't6',
+                title: 'Map existing onboarding flow',
+                description:
+                  'Capture every screen from install to first success event.',
+                status: 'backlog',
+                priority: 'low',
+                dueDate: null,
+                assigneeIds: ['u3'],
+                comments: [],
+                checklist: { completed: 0, total: 3 },
+                createdAt: today.toISOString()
+              },
+              {
+                id: 't7',
+                title: 'Design progress indicator',
+                description:
+                  'Visual cue showing how many steps remain to complete onboarding.',
+                status: 'in-progress',
+                priority: 'medium',
+                dueDate: addDays(4),
+                assigneeIds: ['u5'],
+                comments: [],
+                checklist: { completed: 1, total: 4 },
+                createdAt: today.toISOString()
+              },
+              {
+                id: 't8',
+                title: 'Instrument analytics events',
+                description:
+                  'Track signup start, drop-offs, and activation metrics.',
+                status: 'review',
+                priority: 'high',
+                dueDate: addDays(2),
+                assigneeIds: ['u2', 'u4'],
+                comments: [],
+                checklist: { completed: 0, total: 5 },
+                createdAt: today.toISOString()
+              },
+              {
+                id: 't9',
+                title: 'Release onboarding A/B test',
+                description:
+                  'Launch experiment comparing current and improved flows.',
+                status: 'backlog',
+                priority: 'urgent',
+                dueDate: addDays(7),
+                assigneeIds: ['u1'],
+                comments: [],
+                checklist: { completed: 0, total: 4 },
+                createdAt: today.toISOString()
+              }
+            ]
+          }
+        ];
+      }
+
+      // Rendering helpers
+      function renderAll() {
+        renderProjectsList();
+        renderFilters();
+        renderHeaderProgress();
+        renderSummary();
+        renderBoard();
+        if (state.selectedTaskId) {
+          renderTaskDetail();
+        }
+      }
+
+      function getActiveProject() {
+        return (
+          state.projects.find((p) => p.id === state.activeProjectId) || state.projects[0]
+        );
+      }
+
+      function renderProjectsList() {
+        const project = getActiveProject();
+        const activeId = project ? project.id : null;
+        let html = '';
+        for (const p of state.projects) {
+          const isActive = p.id === activeId;
+          html += `
+        <button type="button"
+                data-project-id="${p.id}"
+                class="w-full text-left px-2.5 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 transition
+                ${isActive
+                  ? 'bg-indigo-500/20 border-indigo-500/80 text-indigo-50 shadow-[0_0_0_1px_rgba(129,140,248,0.6)]'
+                  : 'bg-slate-900/50 border-slate-800 hover:border-slate-600 text-slate-200'}">
+          <div class="min-w-0 flex-1">
+            <p class="truncate font-medium">${escapeHtml(p.name)}</p>
+            <p class="truncate text-[10px] text-slate-400">${escapeHtml(
+              p.description || ''
+            )}</p>
+          </div>
+          <span class="shrink-0 rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+            ${p.tasks.filter((t) => t.status === 'done').length}/${p.tasks.length}
+          </span>
+        </button>
+      `;
+        }
+        projectListEl.innerHTML = html;
+      }
+
+      function renderFilters() {
+        renderPriorityFilters();
+        renderDueFilters();
+        renderAssigneeFilters();
+        renderMyTasksFilter();
+      }
+
+      function renderPriorityFilters() {
+        const selected = state.filters.priorities;
+        const items = ['low', 'medium', 'high', 'urgent'];
+        let html = '<div class="flex flex-wrap gap-1.5">';
+        for (const id of items) {
+          const config = priorityConfig[id];
+          const isActive = selected.has(id);
+          html += `
+        <button type="button"
+                data-priority-filter="${id}"
+                class="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-medium transition
+                ${isActive
+                  ? config.pillClasses + ' ring-1 ring-offset-0 ring-indigo-400/80'
+                  : 'bg-slate-900/60 border-slate-700 text-slate-300 hover:border-slate-500'}">
+          <span class="h-1.5 w-1.5 rounded-full ${
+            id === 'low'
+              ? 'bg-emerald-400'
+              : id === 'medium'
+              ? 'bg-sky-400'
+              : id === 'high'
+              ? 'bg-amber-400'
+              : 'bg-rose-400'
+          }"></span>
+          <span>${config.label}</span>
+        </button>
+      `;
+        }
+        html += '</div>';
+        filterPriorityEl.innerHTML = html;
+      }
+
+      function renderDueFilters() {
+        const due = state.filters.due;
+        filterDueEl.innerHTML = `
+      <div class="flex flex-col gap-1.5 text-[11px] text-slate-300">
+        <label class="inline-flex cursor-pointer items-center gap-2">
+          <input type="radio" name="due-filter" value="all" data-filter-due
+                 class="h-3.5 w-3.5 rounded border-slate-600 text-indigo-500"
+                 ${due === 'all' ? 'checked' : ''}>
+          <span>All due dates</span>
+        </label>
+        <label class="inline-flex cursor-pointer items-center gap-2">
+          <input type="radio" name="due-filter" value="overdue" data-filter-due
+                 class="h-3.5 w-3.5 rounded border-slate-600 text-indigo-500"
+                 ${due === 'overdue' ? 'checked' : ''}>
+          <span>Overdue only</span>
+        </label>
+        <label class="inline-flex cursor-pointer items-center gap-2">
+          <input type="radio" name="due-filter" value="this-week" data-filter-due
+                 class="h-3.5 w-3.5 rounded border-slate-600 text-indigo-500"
+                 ${due === 'this-week' ? 'checked' : ''}>
+          <span>Due in next 7 days</span>
+        </label>
+        <label class="inline-flex cursor-pointer items-center gap-2">
+          <input type="radio" name="due-filter" value="no-date" data-filter-due
+                 class="h-3.5 w-3.5 rounded border-slate-600 text-indigo-500"
+                 ${due === 'no-date' ? 'checked' : ''}>
+          <span>No due date</span>
+        </label>
+      </div>
+    `;
+      }
+
+      function renderAssigneeFilters() {
+        const selectedId = state.filters.assigneeId;
+        let html = '<div class="flex flex-wrap gap-1.5">';
+        const anySelected = !selectedId;
+        html += `
+      <button type="button"
+              data-assignee-filter=""
+              class="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] transition
+              ${anySelected
+                ? 'bg-slate-100 text-slate-900 border-slate-100'
+                : 'bg-slate-900/60 border-slate-700 text-slate-300 hover:border-slate-500'}">
+        <span class="flex h-4 w-4 items-center justify-center rounded-full bg-slate-700 text-[9px] text-slate-200">◎</span>
+        <span>Any assignee</span>
+      </button>
+    `;
+        for (const member of members) {
+          const isActive = selectedId === member.id;
+          html += `
+      <button type="button"
+              data-assignee-filter="${member.id}"
+              class="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] transition
+              ${isActive
+                ? `${member.colorClass} text-slate-900 border-white/80`
+                : 'bg-slate-900/60 border-slate-700 text-slate-200 hover:border-slate-500'}">
+        <span class="flex h-4 w-4 items-center justify-center rounded-full ${
+          member.colorClass
+        } border border-slate-900 text-[9px] text-slate-900">
+          ${member.initials}
+        </span>
+        <span class="max-w-[120px] truncate">${member.name.split(' ')[0]}</span>
+      </button>
+    `;
+        }
+        html += '</div>';
+        filterAssigneesEl.innerHTML = html;
+      }
+
+      function renderMyTasksFilter() {
+        const checked = state.filters.onlyMine;
+        filterMyTasksEl.innerHTML = `
+      <label class="flex cursor-pointer items-center gap-2 text-[11px] text-slate-300 pt-2">
+        <input type="checkbox" data-filter-my-tasks
+               class="h-3.5 w-3.5 rounded border-slate-600 text-indigo-500"
+               ${checked ? 'checked' : ''}>
+        <div class="flex flex-col">
+          <span>Only tasks assigned to me</span>
+          <span class="text-[10px] text-slate-500">Uses current demo user (Alex Johnson)</span>
+        </div>
+      </label>
+    `;
+      }
+
+      function resetFilters() {
+        state.filters.priorities = new Set();
+        state.filters.due = 'all';
+        state.filters.assigneeId = null;
+        state.filters.onlyMine = false;
+        state.searchQuery = '';
+        if (globalSearchInputEl) {
+          globalSearchInputEl.value = '';
+        }
+      }
+
+      function togglePriorityFilter(priority) {
+        const set = state.filters.priorities;
+        if (set.has(priority)) {
+          set.delete(priority);
+        } else {
+          set.add(priority);
+        }
+      }
+
+      function renderHeaderProgress() {
+        const project = getActiveProject();
+        if (!project || !headerProgressLabelEl || !headerProgressBarEl) return;
+        const { total, done, percent } = getProjectProgress(project);
+        headerProgressLabelEl.textContent = `${done} of ${total} tasks done (${Math.round(
+          percent
+        )}%)`;
+        headerProgressBarEl.style.width = `${percent}%`;
+      }
+
+      function renderSummary() {
+        const project = getActiveProject();
+        if (!project || !summaryBarEl) return;
+
+        const filteredTasks = getFilteredTasks(project);
+        const total = filteredTasks.length;
+        const done = filteredTasks.filter((t) => t.status === 'done').length;
+
+        const byStatus = {};
+        for (const st of statuses) {
+          byStatus[st.id] = filteredTasks.filter((t) => t.status === st.id).length;
+        }
+
+        const filtersLabel = buildFiltersSummaryLabel();
+
+        let statusChipsHtml = '';
+        for (const st of statuses) {
+          const count = byStatus[st.id] || 0;
+          statusChipsHtml += `
+        <div class="flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] ${
+          st.id === 'done'
+            ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200'
+            : st.id === 'in-progress'
+            ? 'border-sky-500/60 bg-sky-500/10 text-sky-200'
+            : st.id === 'review'
+            ? 'border-amber-500/60 bg-amber-500/10 text-amber-200'
+            : 'border-slate-700 bg-slate-900/60 text-slate-300'
+        }">
+          <span class="h-1.5 w-1.5 rounded-full ${
+            st.id === 'done'
+              ? 'bg-emerald-400'
+              : st.id === 'in-progress'
+              ? 'bg-sky-400'
+              : st.id === 'review'
+              ? 'bg-amber-400'
+              : 'bg-slate-400'
+          }"></span>
+          <span>${st.label}</span>
+          <span class="text-[10px] text-slate-300/80">${count}</span>
+        </div>
+      `;
+        }
+
+        summaryBarEl.innerHTML = `
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 class="flex items-center gap-2 text-xs font-semibold text-slate-50 sm:text-sm">
+            <span>Project:</span>
+            <span class="inline-flex items-center gap-1 rounded-full border border-slate-700/80 bg-slate-900/80 px-2 py-0.5 text-[11px] font-medium text-slate-100">
+              ${escapeHtml(project.name)}
+            </span>
+          </h2>
+          <p class="mt-1 text-[11px] text-slate-400">
+            ${total} task${total === 1 ? '' : 's'}  b7 ${done} completed
+          </p>
+          <p class="mt-0.5 line-clamp-2 text-[10px] text-slate-500">
+            ${filtersLabel}
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          ${statusChipsHtml}
+        </div>
+      </div>
+    `;
+      }
+
+      function buildFiltersSummaryLabel() {
+        const parts = [];
+        if (state.searchQuery.trim()) {
+          parts.push(`Search: ${state.searchQuery.trim()}`);
+        }
+        if (state.filters.priorities.size) {
+          const list = Array.from(state.filters.priorities)
+            .map((p) => priorityConfig[p]?.label || p)
+            .join(', ');
+          parts.push(`Priority: ${list}`);
+        }
+        if (state.filters.assigneeId) {
+          const member = getMemberById(state.filters.assigneeId);
+          if (member) {
+            parts.push(`Assignee: ${member.name}`);
+          }
+        }
+        if (state.filters.onlyMine) {
+          parts.push('Only tasks assigned to you');
+        }
+        if (state.filters.due !== 'all') {
+          const map = {
+            overdue: 'Overdue only',
+            'this-week': 'Due in the next 7 days',
+            'no-date': 'No due date'
+          };
+          parts.push(map[state.filters.due] || '');
+        }
+
+        return parts.length
+          ? `Filtering by: ${parts.filter(Boolean).join('  b7 ')}`
+          : 'No filters applied. Showing all tasks for this project.';
+      }
+
+      function renderBoard() {
+        const project = getActiveProject();
+        if (!project || !boardColumnsEl) return;
+
+        const filteredTasks = getFilteredTasks(project);
+
+        let html = '';
+        for (const status of statuses) {
+          const tasksForColumn = filteredTasks
+            .filter((t) => t.status === status.id)
+            .sort((a, b) => {
+              const prioDiff =
+                (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
+              if (prioDiff !== 0) return prioDiff;
+              const aDue = a.dueDate ? toDate(a.dueDate).getTime() : Infinity;
+              const bDue = b.dueDate ? toDate(b.dueDate).getTime() : Infinity;
+              return aDue - bDue;
+            });
+
+          const count = tasksForColumn.length;
+
+          html += `
+        <section class="flex max-h-full flex-1 flex-col rounded-xl border border-slate-800/80 bg-slate-900/70 shadow-sm shadow-slate-950/60">
+          <header class="flex items-center justify-between gap-2 border-b border-slate-800 px-3 py-2.5">
+            <div>
+              <h3 class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+                ${status.label}
+              </h3>
+              <p class="text-[10px] text-slate-500">${count} item${
+            count === 1 ? '' : 's'
+          }</p>
+            </div>
+            <button type="button"
+                    data-add-task="${status.id}"
+                    class="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/80 px-2 py-1 text-[10px] text-slate-300 transition hover:border-indigo-500 hover:text-indigo-200">
+              <span class="text-slate-400"></span>
+              <span>Task</span>
+            </button>
+          </header>
+          <div class="board-column scrollbar-thin flex-1 space-y-2 overflow-y-auto px-2 py-2" data-status="${
+            status.id
+          }">
+            ${
+              tasksForColumn.length
+                ? tasksForColumn.map(renderTaskCard).join('')
+                : `<p class="text-center text-[11px] text-slate-500 px-1 py-1.5 border border-dashed border-slate-700/80 rounded-lg">
+                    Drop tasks here or click Task to create one.
+                   </p>`
+            }
+          </div>
+        </section>
+      `;
+        }
+
+        boardColumnsEl.innerHTML = html;
+      }
+
+      function renderTaskCard(task) {
+        const project = getActiveProject();
+        const { label: dueLabel, classes: dueClasses } = getDuePresentation(task);
+        const shortDate = task.dueDate ? formatShortDate(toDate(task.dueDate)) : null;
+        const priority = priorityConfig[task.priority] || priorityConfig.medium;
+        const taskMembers = (task.assigneeIds || [])
+          .map(getMemberById)
+          .filter(Boolean);
+
+        const avatarsHtml = [];
+        taskMembers.slice(0, 3).forEach((member, index) => {
+          avatarsHtml.push(`
+        <div class="h-5 w-5 rounded-full ${
+          member.colorClass
+        } border border-slate-900 text-[9px] font-semibold text-slate-900 flex items-center justify-center ${
+            index > 0 ? '-ml-1' : ''
+          }"
+             title="${escapeHtml(member.name)}">
+          ${member.initials}
+        </div>
+      `);
+        });
+        if (taskMembers.length > 3) {
+          avatarsHtml.push(`
+        <div class="-ml-1 flex h-5 w-5 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-[9px] text-slate-200">
+          +${taskMembers.length - 3}
+        </div>
+      `);
+        }
+
+        const commentsCount = task.comments?.length || 0;
+        const checklist = task.checklist || { completed: 0, total: 0 };
+        const checklistLabel = checklist.total
+          ? `${checklist.completed}/${checklist.total}`
+          : null;
+
+        return `
+      <article class="task-card group cursor-pointer select-none rounded-lg border border-slate-700/80 bg-slate-800/80 px-2.5 py-2 text-[11px] text-slate-100 shadow-sm shadow-slate-950/60 transition hover:border-indigo-400/80 hover:shadow-[0_0_0_1px_rgba(129,140,248,0.6)]"
+               draggable="true"
+               data-task-id="${task.id}">
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <h4 class="truncate text-[11px] font-semibold text-slate-50" title="${escapeHtml(
+              task.title
+            )}">
+              ${escapeHtml(task.title)}
+            </h4>
+            ${
+              task.description
+                ? `<p class="mt-0.5 line-clamp-2 text-[10px] text-slate-400">
+                     ${escapeHtml(task.description)}
+                   </p>`
+                : ''
+            }
+          </div>
+          <span class="shrink-0 rounded-full border ${
+            priority.pillClasses
+          } px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.16em]">
+            ${priority.label}
+          </span>
+        </div>
+        <div class="mt-2 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-1.5">
+            <span class="inline-flex items-center gap-1 rounded-full border ${
+              dueClasses
+            } px-1.5 py-0.5 text-[9px]">
+              <span> 10</span>
+              <span>${escapeHtml(dueLabel)}</span>
+              ${shortDate
+                ? `<span class="hidden text-[9px] opacity-80 sm:inline"> b ${shortDate}</span>`
+                : ''}
+            </span>
+            ${
+              checklistLabel
+                ? `<span class="inline-flex items-center gap-1 rounded-full border border-slate-700/80 bg-slate-900/80 px-1.5 py-0.5 text-[9px] text-slate-300">
+                     <span>7</span>
+                     <span>${checklistLabel}</span>
+                   </span>`
+                : ''
+            }
+          </div>
+          <div class="flex items-center gap-1.5">
+            ${
+              avatarsHtml.length
+                ? `<div class="flex items-center">${avatarsHtml.join('')}</div>`
+                : ''
+            }
+            ${
+              commentsCount
+                ? `<div class="inline-flex items-center gap-1 rounded-full border border-slate-700/80 bg-slate-900 px-1.5 py-0.5 text-[9px] text-slate-300">
+                     <span>5</span>
+                     <span>${commentsCount}</span>
+                   </div>`
+                : ''
+            }
+          </div>
+        </div>
+        ${
+          project
+            ? `<p class="mt-1 flex items-center gap-1 text-[9px] text-slate-500">
+                 <span class="h-1.5 w-1.5 rounded-full bg-slate-500"></span>
+                 <span>${escapeHtml(project.name)}</span>
+               </p>`
+            : ''
+        }
+      </article>
+    `;
+      }
+
+      // Filtering logic
+      function getFilteredTasks(project) {
+        const query = (state.searchQuery || '').trim().toLowerCase();
+        const filters = state.filters;
+
+        return project.tasks.filter((task) => {
+          if (query) {
+            const haystack = [
+              task.title,
+              task.description,
+              ...(task.tags || []),
+              ...(task.assigneeIds || []).map((id) => getMemberById(id)?.name || '')
+            ]
+              .join(' ')
+              .toLowerCase();
+            if (!haystack.includes(query)) return false;
+          }
+
+          if (filters.priorities.size && !filters.priorities.has(task.priority)) {
+            return false;
+          }
+
+          if (
+            filters.assigneeId &&
+            !(task.assigneeIds || []).includes(filters.assigneeId)
+          ) {
+            return false;
+          }
+
+          if (
+            filters.onlyMine &&
+            !(task.assigneeIds || []).includes(state.currentUserId)
+          ) {
+            return false;
+          }
+
+          if (filters.due !== 'all') {
+            const hasDue = !!task.dueDate;
+            const dueDate = hasDue ? toDate(task.dueDate) : null;
+            if (filters.due === 'no-date' && hasDue) return false;
+            if (
+              filters.due === 'overdue' &&
+              !(dueDate && isOverdue(dueDate, task.status))
+            )
+              return false;
+            if (
+              filters.due === 'this-week' &&
+              !(dueDate && isDueThisWeek(dueDate))
+            )
+              return false;
+          }
+
+          return true;
+        });
+      }
+
+      // Task interactions
+      function handleAddTask(status) {
+        const title = window.prompt('New task title');
+        if (!title) return;
+        const project = getActiveProject();
+        if (!project) return;
+        const id = 't' + Math.random().toString(36).slice(2, 9);
+        project.tasks.push({
+          id,
+          title: title.trim(),
+          description: '',
+          status,
+          priority: 'medium',
+          dueDate: null,
+          assigneeIds: [state.currentUserId],
+          comments: [],
+          checklist: { completed: 0, total: 0 },
+          createdAt: new Date().toISOString()
+        });
+        renderBoard();
+        renderSummary();
+        renderHeaderProgress();
+      }
+
+      function moveTaskToStatus(taskId, status) {
+        const project = getActiveProject();
+        if (!project) return;
+        const task = project.tasks.find((t) => t.id === taskId);
+        if (!task || task.status === status) return;
+        task.status = status;
+        renderBoard();
+        renderSummary();
+        renderHeaderProgress();
+        if (state.selectedTaskId === taskId) {
+          renderTaskDetail();
+        }
+      }
+
+      // Detail panel
+      function openTaskDetail(taskId) {
+        state.selectedTaskId = taskId;
+        if (overlayEl) {
+          overlayEl.classList.remove('hidden');
+          overlayEl.classList.add('flex');
+        }
+        renderTaskDetail();
+      }
+
+      function closeTaskDetail(clearSelection) {
+        if (overlayEl) {
+          overlayEl.classList.add('hidden');
+          overlayEl.classList.remove('flex');
+        }
+        if (clearSelection) {
+          state.selectedTaskId = null;
+        }
+      }
+
+      function findSelectedTask() {
+        const project = getActiveProject();
+        if (!project || !state.selectedTaskId) return null;
+        return project.tasks.find((t) => t.id === state.selectedTaskId) || null;
+      }
+
+      function renderTaskDetail() {
+        const task = findSelectedTask();
+        const project = getActiveProject();
+        if (!task || !project) return;
+
+        if (detailProjectNameEl) {
+          detailProjectNameEl.textContent = project.name;
+        }
+        if (detailTitleEl) {
+          detailTitleEl.textContent = task.title;
+        }
+        if (detailStatusSelectEl) {
+          detailStatusSelectEl.value = task.status;
+        }
+        if (detailPrioritySelectEl) {
+          detailPrioritySelectEl.value = task.priority;
+        }
+        if (detailDueInputEl) {
+          detailDueInputEl.value = task.dueDate || '';
+        }
+        if (detailDescriptionEl) {
+          detailDescriptionEl.value = task.description || '';
+        }
+        if (detailDueMetaEl) {
+          const { label } = getDuePresentation(task);
+          const aux = task.dueDate
+            ? ` (${formatShortDate(toDate(task.dueDate))})`
+            : '';
+          detailDueMetaEl.textContent = label + aux;
+        }
+
+        if (detailAssigneesEl) {
+          let html = '';
+          for (const member of members) {
+            const isAssigned = (task.assigneeIds || []).includes(member.id);
+            html += `
+          <button type="button"
+                  data-member-id="${member.id}"
+                  class="inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] transition
+                  ${isAssigned
+                    ? `${member.colorClass} text-slate-900 border-white/80`
+                    : 'bg-slate-900 border-slate-700 text-slate-200 hover:border-slate-500'}">
+            <span class="flex h-5 w-5 items-center justify-center rounded-full ${
+              member.colorClass
+            } border border-slate-900 text-[10px] font-semibold text-slate-900">
+              ${member.initials}
+            </span>
+            <span>${member.name}</span>
+          </button>
+        `;
+          }
+          detailAssigneesEl.innerHTML = html;
+        }
+
+        if (detailCommentsEl) {
+          const comments = task.comments || [];
+          if (!comments.length) {
+            detailCommentsEl.innerHTML = `
+          <p class="text-[11px] text-slate-500">No comments yet. Start a discussion with your team.</p>
+        `;
+          } else {
+            const html = comments
+              .slice()
+              .sort(
+                (a, b) =>
+                  new Date(a.createdAt).getTime() -
+                  new Date(b.createdAt).getTime()
+              )
+              .map((comment) => {
+                const author =
+                  getMemberById(comment.authorId) || {
+                    name: 'Unknown',
+                    initials: '?',
+                    colorClass: 'bg-slate-600'
+                  };
+                return `
+              <article class="flex items-start gap-2.5">
+                <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                  author.colorClass
+                } border border-slate-900 text-[10px] font-semibold text-slate-900">
+                  ${author.initials}
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-[11px] font-medium text-slate-100">
+                      ${escapeHtml(author.name)}
+                    </p>
+                    <span class="text-[10px] text-slate-500">
+                      ${formatRelativeTime(comment.createdAt)}
+                    </span>
+                  </div>
+                  <p class="mt-0.5 whitespace-pre-line text-[11px] text-slate-200">
+                    ${escapeHtml(comment.text)}
+                  </p>
+                </div>
+              </article>
+            `;
+              })
+              .join('');
+            detailCommentsEl.innerHTML = html;
+          }
+        }
+
+        if (detailCommentInputEl) {
+          detailCommentInputEl.value = '';
+        }
+      }
+
+      function submitComment() {
+        if (!state.selectedTaskId || !detailCommentInputEl) return;
+        const text = detailCommentInputEl.value.trim();
+        if (!text) return;
+        const task = findSelectedTask();
+        if (!task) return;
+        task.comments = task.comments || [];
+        task.comments.push({
+          id: 'c' + Math.random().toString(36).slice(2, 9),
+          authorId: state.currentUserId,
+          text,
+          createdAt: new Date().toISOString()
+        });
+        detailCommentInputEl.value = '';
+        renderTaskDetail();
+        renderBoard();
+      }
+
+      // Utilities
+      function getProjectProgress(project) {
+        const total = project.tasks.length || 0;
+        const done = project.tasks.filter((t) => t.status === 'done').length;
+        const percent = total ? (done / total) * 100 : 0;
+        return { total, done, percent };
+      }
+
+      function getMemberById(id) {
+        return members.find((m) => m.id === id) || null;
+      }
+
+      function toDate(dateStr) {
+        return new Date(dateStr + 'T00:00:00');
+      }
+
+      function isOverdue(dueDate, status) {
+        if (!dueDate) return false;
+        if (status === 'done') return false;
+        const today = new Date();
+        const endOfToday = new Date(
+          today.getFullYear(),
+          today.getMonth(),
+          today.getDate(),
+          23,
+          59,
+          59
+        );
+        return dueDate.getTime() < endOfToday.getTime();
+      }
+
+      function isDueThisWeek(dueDate) {
+        if (!dueDate) return false;
+        const today = new Date();
+        const diffMs = dueDate.getTime() - today.getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+        return diffDays >= 0 && diffDays <= 7;
+      }
+
+      function getDuePresentation(task) {
+        if (!task.dueDate) {
+          return {
+            label: 'No due date',
+            classes: 'border-slate-700/80 bg-slate-900/80 text-slate-300'
+          };
+        }
+        const dueDate = toDate(task.dueDate);
+        if (task.status === 'done') {
+          return {
+            label: 'Completed',
+            classes: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+          };
+        }
+        const today = new Date();
+        const todayStart = new Date(
+          today.getFullYear(),
+          today.getMonth(),
+          today.getDate()
+        );
+        const diffDays = Math.round(
+          (dueDate.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        if (diffDays < 0) {
+          const daysLate = Math.abs(diffDays);
+          return {
+            label: daysLate === 1 ? 'Overdue by 1 day' : `Overdue by ${daysLate} days`,
+            classes: 'border-rose-500/60 bg-rose-500/10 text-rose-200'
+          };
+        }
+        if (diffDays === 0) {
+          return {
+            label: 'Due today',
+            classes: 'border-amber-500/70 bg-amber-500/10 text-amber-100'
+          };
+        }
+        if (diffDays === 1) {
+          return {
+            label: 'Due tomorrow',
+            classes: 'border-amber-500/60 bg-amber-500/10 text-amber-100'
+          };
+        }
+        if (diffDays <= 7) {
+          return {
+            label: `Due in ${diffDays} days`,
+            classes: 'border-sky-500/60 bg-sky-500/10 text-sky-200'
+          };
+        }
+        return {
+          label: `In ${diffDays} days`,
+          classes: 'border-slate-700/80 bg-slate-900/80 text-slate-200'
+        };
+      }
+
+      function formatShortDate(date) {
+        return date.toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric'
+        });
+      }
+
+      function formatRelativeTime(isoString) {
+        const date = new Date(isoString);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffMinutes = Math.round(diffMs / (1000 * 60));
+        if (diffMinutes < 1) return 'Just now';
+        if (diffMinutes < 60) return `${diffMinutes}m ago`;
+        const diffHours = Math.round(diffMinutes / 60);
+        if (diffHours < 24) return `${diffHours}h ago`;
+        const diffDays = Math.round(diffHours / 24);
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return date.toLocaleDateString();
+      }
+
+      function escapeHtml(str) {
+        if (typeof str !== 'string') return '';
+        return str
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+    })();
+  </script>
+</body>
+</html>
