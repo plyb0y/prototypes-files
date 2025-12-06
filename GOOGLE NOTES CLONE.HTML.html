@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KeepNotes - Modern Notes App</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #666; }
+        
+        /* Animations */
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes scaleIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @keyframes slideRight { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+        
+        .animate-slideIn { animation: slideIn 0.3s ease-out; }
+        .animate-slideUp { animation: slideUp 0.4s ease-out; }
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+        .animate-scaleIn { animation: scaleIn 0.3s ease-out; }
+        .animate-shake { animation: shake 0.3s ease-out; }
+        .animate-pulse { animation: pulse 1.5s infinite; }
+        .animate-slideRight { animation: slideRight 0.3s ease-out; }
+        .animate-bounce { animation: bounce 0.5s ease-out; }
+        .animate-float { animation: float 3s ease-in-out infinite; }
+        
+        /* Masonry Grid */
+        .masonry-grid { column-count: 1; column-gap: 16px; }
+        @media (min-width: 640px) { .masonry-grid { column-count: 2; } }
+        @media (min-width: 1024px) { .masonry-grid { column-count: 3; } }
+        @media (min-width: 1280px) { .masonry-grid { column-count: 4; } }
+        .masonry-item { break-inside: avoid; margin-bottom: 16px; }
+        
+        /* Gradient Background */
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .gradient-bg-dark { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); }
+        
+        /* Glass Effect */
+        .glass { backdrop-filter: blur(10px); background: rgba(255, 255, 255, 0.1); }
+        .glass-dark { backdrop-filter: blur(10px); background: rgba(0, 0, 0, 0.2); }
+        
+        /* Skeleton Loading */
+        .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+        .skeleton-dark { background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        
+        /* Note Colors */
+        .note-default { background: #ffffff; }
+        .note-red { background: #faafa8; }
+        .note-orange { background: #fbbc04; }
+        .note-yellow { background: #fff475; }
+        .note-green { background: #ccff90; }
+        .note-teal { background: #a7ffeb; }
+        .note-blue { background: #cbf0f8; }
+        .note-purple { background: #d7aefb; }
+        .note-pink { background: #fdcfe8; }
+        
+        .dark .note-default { background: #2d2d2d; }
+        .dark .note-red { background: #5c2b29; }
+        .dark .note-orange { background: #614a19; }
+        .dark .note-yellow { background: #635d19; }
+        .dark .note-green { background: #345920; }
+        .dark .note-teal { background: #16504b; }
+        .dark .note-blue { background: #2d555e; }
+        .dark .note-purple { background: #42275e; }
+        .dark .note-pink { background: #5b2245; }
+
+        /* Hide scrollbar for sidebar on mobile */
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect, useContext, createContext, useCallback, useRef, useMemo } = React;
+
+        // ==================== CONTEXTS ====================
+        
+        // Theme Context
+        const ThemeContext = createContext();
+        
+        const ThemeProvider = ({ children }) => {
+            const [darkMode, setDarkMode] = useState(() => {
+                const saved = localStorage.getItem('keepnotes-darkMode');
+                return saved ? JSON.parse(saved) : window.matchMedia('(prefers-color-scheme: dark)').matches;
+            });
+
+            useEffect(() => {
+                localStorage.setItem('keepnotes-darkMode', JSON.stringify(darkMode));
+                document.documentElement.classList.toggle('dark', darkMode);
+            }, [darkMode]);
+
+            return (
+                <ThemeContext.Provider value={{ darkMode, setDarkMode, toggleDarkMode: () => setDarkMode(d => !d) }}>
+                    {children}
+                </ThemeContext.Provider>
+            );
+        };
+
+        // Notes Context - Using localStorage
+        const NotesContext = createContext();
+
+        const NotesProvider = ({ children }) => {
+            const [notes, setNotes] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [searchQuery, setSearchQuery] = useState('');
+            const [activeView, setActiveView] = useState('notes');
+
+            // Load notes from localStorage on mount
+            useEffect(() => {
+                const savedNotes = localStorage.getItem('keepnotes-notes');
+                if (savedNotes) {
+                    setNotes(JSON.parse(savedNotes));
+                }
+                // Simulate loading delay for skeleton effect
+                setTimeout(() => setLoading(false), 500);
+            }, []);
+
+            // Save notes to localStorage whenever they change
+            useEffect(() => {
+                if (!loading) {
+                    localStorage.setItem('keepnotes-notes', JSON.stringify(notes));
+                }
+            }, [notes, loading]);
+
+            const generateId = () => {
+                return Date.now().toString(36) + Math.random().toString(36).substr(2);
+            };
+
+            const addNote = (noteData) => {
+                const now = new Date().toISOString();
+                const newNote = {
+                    id: generateId(),
+                    ...noteData,
+                    pinned: false,
+                    archived: false,
+                    trashed: false,
+                    color: 'default',
+                    createdAt: now,
+                    updatedAt: now
+                };
+                setNotes(prev => [newNote, ...prev]);
+                return newNote;
+            };
+
+            const updateNote = (noteId, updates) => {
+                setNotes(prev => prev.map(note => 
+                    note.id === noteId 
+                        ? { ...note, ...updates, updatedAt: new Date().toISOString() }
+                        : note
+                ));
+            };
+
+            const deleteNote = (noteId) => {
+                setNotes(prev => prev.filter(note => note.id !== noteId));
+            };
+
+            const filteredNotes = useMemo(() => {
+                let filtered = notes;
+
+                // Filter by view
+                switch (activeView) {
+                    case 'notes':
+                        filtered = filtered.filter(n => !n.archived && !n.trashed);
+                        break;
+                    case 'pinned':
+                        filtered = filtered.filter(n => n.pinned && !n.archived && !n.trashed);
+                        break;
+                    case 'archived':
+                        filtered = filtered.filter(n => n.archived && !n.trashed);
+                        break;
+                    case 'trash':
+                        filtered = filtered.filter(n => n.trashed);
+                        break;
+                }
+
+                // Filter by search
+                if (searchQuery.trim()) {
+                    const query = searchQuery.toLowerCase();
+                    filtered = filtered.filter(n => 
+                        n.title?.toLowerCase().includes(query) || 
+                        n.content?.toLowerCase().includes(query)
+                    );
+                }
+
+                // Sort: pinned first, then by date
+                return filtered.sort((a, b) => {
+                    if (a.pinned && !b.pinned) return -1;
+                    if (!a.pinned && b.pinned) return 1;
+                    return new Date(b.updatedAt) - new Date(a.updatedAt);
+                });
+            }, [notes, activeView, searchQuery]);
+
+            return (
+                <NotesContext.Provider value={{
+                    notes, filteredNotes, loading, searchQuery, setSearchQuery,
+                    activeView, setActiveView, addNote, updateNote, deleteNote
+                }}>
+                    {children}
+                </NotesContext.Provider>
+            );
+        };
+
+        // Toast Context
+        const ToastContext = createContext();
+
+        const ToastProvider = ({ children }) => {
+            const [toasts, setToasts] = useState([]);
+
+            const addToast = (message, type = 'success') => {
+                const id = Date.now();
+                setToasts(prev => [...prev, { id, message, type }]);
+                setTimeout(() => {
+                    setToasts(prev => prev.filter(t => t.id !== id));
+                }, 3000);
+            };
+
+            return (
+                <ToastContext.Provider value={{ addToast }}>
+                    {children}
+                    <ToastContainer toasts={toasts} />
+                </ToastContext.Provider>
+            );
+        };
+
+        // ==================== ICONS ====================
+        const Icon = ({ name, size = 20, className = '' }) => {
+            const ref = useRef();
+            useEffect(() => {
+                if (ref.current) {
+                    ref.current.innerHTML = '';
+                    const icon = lucide.createElement(lucide.icons[name]);
+                    icon.setAttribute('width', size);
+                    icon.setAttribute('height', size);
+                    ref.current.appendChild(icon);
+                }
+            }, [name, size]);
+            return <span ref={ref} className={`inline-flex items-center justify-center ${className}`} />;
+        };
+
+        // ==================== COMPONENTS ====================
+
+        // Toast Container
+        const ToastContainer = ({ toasts }) => {
+            const { darkMode } = useContext(ThemeContext);
+            return (
+                <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2">
+                    {toasts.map(toast => (
+                        <div 
+                            key={toast.id}
+                            className={`animate-slideUp px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 min-w-[250px] ${
+                                toast.type === 'success' 
+                                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white' 
+                                    : toast.type === 'error' 
+                                    ? 'bg-gradient-to-r from-red-500 to-rose-600 text-white' 
+                                    : 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
+                            }`}
+                        >
+                            <Icon name={toast.type === 'success' ? 'CheckCircle' : toast.type === 'error' ? 'XCircle' : 'Info'} size={20} />
+                            <span className="font-medium">{toast.message}</span>
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        // Modal Component
+        const Modal = ({ isOpen, onClose, title, children, onConfirm, confirmText = 'Confirm', danger = false }) => {
+            const { darkMode } = useContext(ThemeContext);
+            
+            if (!isOpen) return null;
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fadeIn" />
+                    <div 
+                        className={`relative w-full max-w-md rounded-2xl shadow-2xl animate-scaleIn p-6 ${
+                            darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
+                        }`}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                danger ? 'bg-red-100 text-red-600' : 'bg-indigo-100 text-indigo-600'
+                            }`}>
+                                <Icon name={danger ? 'AlertTriangle' : 'Info'} size={20} />
+                            </div>
+                            <h3 className="text-xl font-semibold">{title}</h3>
+                        </div>
+                        <div className={`mb-6 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{children}</div>
+                        <div className="flex gap-3 justify-end">
+                            <button 
+                                onClick={onClose}
+                                className={`px-5 py-2.5 rounded-xl font-medium transition-all ${
+                                    darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
+                                }`}
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={onConfirm}
+                                className={`px-5 py-2.5 rounded-xl font-medium text-white transition-all transform hover:scale-105 ${
+                                    danger 
+                                        ? 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700' 
+                                        : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700'
+                                }`}
+                            >
+                                {confirmText}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Skeleton Loader
+        const SkeletonNote = () => {
+            const { darkMode } = useContext(ThemeContext);
+            return (
+                <div className={`masonry-item rounded-2xl p-5 ${darkMode ? 'skeleton-dark' : 'skeleton'}`}>
+                    <div className={`h-6 w-3/4 rounded-lg mb-4 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+                    <div className={`h-4 w-full rounded-lg mb-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+                    <div className={`h-4 w-5/6 rounded-lg mb-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+                    <div className={`h-4 w-2/3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+                </div>
+            );
+        };
+
+        // Empty State
+        const EmptyState = ({ icon, title, description }) => {
+            const { darkMode } = useContext(ThemeContext);
+            return (
+                <div className="flex flex-col items-center justify-center py-20 animate-fadeIn">
+                    <div className={`w-32 h-32 rounded-full flex items-center justify-center mb-8 animate-float ${
+                        darkMode ? 'bg-gray-800/50' : 'bg-white/50'
+                    }`}>
+                        <div className={`w-24 h-24 rounded-full flex items-center justify-center ${
+                            darkMode ? 'bg-gray-700' : 'bg-gray-100'
+                        }`}>
+                            <Icon name={icon} size={48} className={darkMode ? 'text-gray-500' : 'text-gray-400'} />
+                        </div>
+                    </div>
+                    <h3 className={`text-2xl font-bold mb-3 ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                        {title}
+                    </h3>
+                    <p className={`text-center max-w-sm text-lg ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                        {description}
+                    </p>
+                </div>
+            );
+        };
+
+        // Navbar Component
+        const Navbar = ({ sidebarOpen, setSidebarOpen }) => {
+            const { darkMode, toggleDarkMode } = useContext(ThemeContext);
+            const { searchQuery, setSearchQuery } = useContext(NotesContext);
+            const searchRef = useRef();
+
+            // Keyboard shortcuts
+            useEffect(() => {
+                const handleKeydown = (e) => {
+                    if (e.ctrlKey && e.key === '/') {
+                        e.preventDefault();
+                        searchRef.current?.focus();
+                    }
+                };
+                window.addEventListener('keydown', handleKeydown);
+                return () => window.removeEventListener('keydown', handleKeydown);
+            }, []);
+
+            return (
+                <nav className={`fixed top-0 left-0 right-0 z-40 h-16 px-4 flex items-center gap-4 border-b transition-all duration-300 ${
+                    darkMode ? 'bg-gray-900/95 border-gray-800 backdrop-blur-lg' : 'bg-white/95 border-gray-200 backdrop-blur-lg'
+                }`}>
+                    {/* Menu Button */}
+                    <button 
+                        onClick={() => setSidebarOpen(!sidebarOpen)}
+                        className={`p-2.5 rounded-xl transition-all lg:hidden ${
+                            darkMode ? 'hover:bg-gray-800 active:bg-gray-700' : 'hover:bg-gray-100 active:bg-gray-200'
+                        }`}
+                    >
+                        <Icon name={sidebarOpen ? 'X' : 'Menu'} size={24} />
+                    </button>
+
+                    {/* Logo */}
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                            <Icon name="StickyNote" size={22} className="text-white" />
+                        </div>
+                        <span className="text-xl font-bold hidden sm:block bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
+                            KeepNotes
+                        </span>
+                    </div>
+
+                    {/* Search Bar */}
+                    <div className={`flex-1 max-w-2xl mx-auto relative ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        <Icon name="Search" size={20} className={`absolute left-4 top-1/2 -translate-y-1/2 ${
+                            darkMode ? 'text-gray-400' : 'text-gray-500'
+                        }`} />
+                        <input
+                            ref={searchRef}
+                            type="text"
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            placeholder="Search notes..."
+                            className={`w-full pl-12 pr-12 py-2.5 rounded-xl border-2 transition-all focus:ring-2 focus:ring-indigo-500/50 outline-none ${
+                                darkMode 
+                                    ? 'bg-gray-800 border-gray-700 placeholder-gray-500 focus:border-indigo-500' 
+                                    : 'bg-gray-100 border-transparent placeholder-gray-400 focus:border-indigo-500 focus:bg-white'
+                            }`}
+                        />
+                        {searchQuery ? (
+                            <button 
+                                onClick={() => setSearchQuery('')}
+                                className={`absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full transition-colors ${
+                                    darkMode ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'
+                                }`}
+                            >
+                                <Icon name="X" size={16} />
+                            </button>
+                        ) : (
+                            <kbd className={`absolute right-4 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md ${
+                                darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
+                            }`}>
+                                <span>Ctrl</span>
+                                <span>/</span>
+                            </kbd>
+                        )}
+                    </div>
+
+                    {/* Right Actions */}
+                    <div className="flex items-center gap-2">
+                        {/* Dark Mode Toggle */}
+                        <button 
+                            onClick={toggleDarkMode}
+                            className={`p-2.5 rounded-xl transition-all hover:scale-110 active:scale-95 ${
+                                darkMode 
+                                    ? 'hover:bg-gray-800 text-yellow-400' 
+                                    : 'hover:bg-gray-100 text-gray-600'
+                            }`}
+                            title={darkMode ? 'Light Mode' : 'Dark Mode'}
+                        >
+                            <Icon name={darkMode ? 'Sun' : 'Moon'} size={22} />
+                        </button>
+
+                        {/* User Avatar */}
+                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
+                            <Icon name="User" size={20} />
+                        </div>
+                    </div>
+                </nav>
+            );
+        };
+
+        // Sidebar Component
+        const Sidebar = ({ isOpen, onClose }) => {
+            const { darkMode } = useContext(ThemeContext);
+            const { activeView, setActiveView, notes } = useContext(NotesContext);
+
+            const menuItems = [
+                { id: 'notes', icon: 'Lightbulb', label: 'Notes', count: notes.filter(n => !n.archived && !n.trashed).length },
+                { id: 'pinned', icon: 'Pin', label: 'Pinned', count: notes.filter(n => n.pinned && !n.archived && !n.trashed).length },
+                { id: 'archived', icon: 'Archive', label: 'Archive', count: notes.filter(n => n.archived && !n.trashed).length },
+                { id: 'trash', icon: 'Trash2', label: 'Trash', count: notes.filter(n => n.trashed).length },
+            ];
+
+            return (
+                <>
+                    {/* Overlay for mobile */}
+                    {isOpen && (
+                        <div 
+                            className="fixed inset-0 bg-black/50 z-40 lg:hidden animate-fadeIn backdrop-blur-sm"
+                            onClick={onClose}
+                        />
+                    )}
+
+                    {/* Sidebar */}
+                    <aside className={`fixed top-16 left-0 h-[calc(100vh-4rem)] z-40 w-72 p-4 transition-transform duration-300 overflow-y-auto hide-scrollbar ${
+                        darkMode ? 'bg-gray-900/95 backdrop-blur-lg' : 'bg-white/95 backdrop-blur-lg'
+                    } ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+                        <nav className="space-y-2">
+                            {menuItems.map((item, idx) => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => { setActiveView(item.id); onClose(); }}
+                                    className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all animate-slideRight ${
+                                        activeView === item.id
+                                            ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/30'
+                                            : darkMode 
+                                                ? 'hover:bg-gray-800 text-gray-300 hover:text-white' 
+                                                : 'hover:bg-gray-100 text-gray-700 hover:text-gray-900'
+                                    }`}
+                                    style={{ animationDelay: `${idx * 50}ms` }}
+                                >
+                                    <Icon name={item.icon} size={22} />
+                                    <span className="font-medium flex-1 text-left">{item.label}</span>
+                                    {item.count > 0 && (
+                                        <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
+                                            activeView === item.id 
+                                                ? 'bg-white/20' 
+                                                : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-600'
+                                        }`}>
+                                            {item.count}
+                                        </span>
+                                    )}
+                                </button>
+                            ))}
+                        </nav>
+
+                        {/* Keyboard Shortcuts */}
+                        <div className={`absolute bottom-4 left-4 right-4 p-5 rounded-2xl ${
+                            darkMode ? 'bg-gray-800/80' : 'bg-gray-100/80'
+                        }`}>
+                            <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                Keyboard Shortcuts
+                            </p>
+                            <div className="space-y-2.5">
+                                <div className={`flex items-center justify-between text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    <span>New note</span>
+                                    <kbd className={`px-2 py-1 rounded-lg font-mono text-xs ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>N</kbd>
+                                </div>
+                                <div className={`flex items-center justify-between text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    <span>Search</span>
+                                    <div className="flex gap-1">
+                                        <kbd className={`px-2 py-1 rounded-lg font-mono text-xs ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>Ctrl</kbd>
+                                        <kbd className={`px-2 py-1 rounded-lg font-mono text-xs ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>/</kbd>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </aside>
+                </>
+            );
+        };
+
+        // Note Card Component
+        const NoteCard = ({ note, onEdit }) => {
+            const { darkMode } = useContext(ThemeContext);
+            const { updateNote, deleteNote, activeView } = useContext(NotesContext);
+            const { addToast } = useContext(ToastContext);
+            const [showActions, setShowActions] = useState(false);
+            const [showDeleteModal, setShowDeleteModal] = useState(false);
+            const [showColorPicker, setShowColorPicker] = useState(false);
+
+            const colors = ['default', 'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink'];
+
+            const handlePin = async (e) => {
+                e.stopPropagation();
+                updateNote(note.id, { pinned: !note.pinned });
+                addToast(note.pinned ? 'Note unpinned' : 'Note pinned', 'success');
+            };
+
+            const handleArchive = async (e) => {
+                e.stopPropagation();
+                updateNote(note.id, { archived: !note.archived });
+                addToast(note.archived ? 'Note restored' : 'Note archived', 'success');
+            };
+
+            const handleTrash = async (e) => {
+                e.stopPropagation();
+                updateNote(note.id, { trashed: true });
+                addToast('Note moved to trash', 'success');
+            };
+
+            const handleRestore = async (e) => {
+                e.stopPropagation();
+                updateNote(note.id, { trashed: false });
+                addToast('Note restored', 'success');
+            };
+
+            const handleDelete = async () => {
+                deleteNote(note.id);
+                addToast('Note deleted permanently', 'success');
+                setShowDeleteModal(false);
+            };
+
+            const handleColorChange = async (color, e) => {
+                e.stopPropagation();
+                updateNote(note.id, { color });
+                setShowColorPicker(false);
+            };
+
+            const wordCount = (note.content || '').split(/\s+/).filter(w => w.length > 0).length;
+            const formattedDate = new Date(note.updatedAt).toLocaleDateString('en-US', { 
+                month: 'short', day: 'numeric', year: 'numeric' 
+            });
+
+            return (
+                <>
+                    <div 
+                        className={`masonry-item note-${note.color || 'default'} rounded-2xl shadow-md hover:shadow-2xl 
+                            transition-all duration-300 cursor-pointer group animate-scaleIn border-2 relative overflow-hidden ${
+                            darkMode ? 'border-gray-700 hover:border-gray-600' : 'border-gray-100 hover:border-gray-200'
+                        }`}
+                        onMouseEnter={() => setShowActions(true)}
+                        onMouseLeave={() => { setShowActions(false); setShowColorPicker(false); }}
+                        onClick={() => onEdit(note)}
+                    >
+                        {/* Pinned Badge */}
+                        {note.pinned && (
+                            <div className="absolute top-3 right-3 z-10">
+                                <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                                    <Icon name="Pin" size={16} className="text-indigo-500 fill-indigo-500" />
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="p-5">
+                            {/* Title */}
+                            {note.title && (
+                                <h3 className={`font-bold text-lg mb-3 line-clamp-2 pr-8 ${
+                                    darkMode ? 'text-white' : 'text-gray-900'
+                                }`}>
+                                    {note.title}
+                                </h3>
+                            )}
+                            
+                            {/* Content */}
+                            <p className={`whitespace-pre-wrap line-clamp-8 leading-relaxed ${
+                                darkMode ? 'text-gray-300' : 'text-gray-600'
+                            }`}>
+                                {note.content || 'No content'}
+                            </p>
+
+                            {/* Meta Info */}
+                            <div className={`flex items-center gap-2 mt-4 text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                <span>{wordCount} words</span>
+                                <span>•</span>
+                                <span>{formattedDate}</span>
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className={`flex items-center gap-1 px-3 py-2 border-t transition-all duration-200 ${
+                            showActions ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+                        } ${darkMode ? 'border-gray-700/50' : 'border-gray-200/50'}`}
+                        onClick={e => e.stopPropagation()}>
+                            {activeView !== 'trash' ? (
+                                <>
+                                    <button 
+                                        onClick={handlePin}
+                                        className={`p-2.5 rounded-xl transition-all hover:scale-110 ${
+                                            darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-white/50'
+                                        }`}
+                                        title={note.pinned ? 'Unpin' : 'Pin'}
+                                    >
+                                        <Icon name="Pin" size={18} className={note.pinned ? 'text-indigo-500 fill-indigo-500' : ''} />
+                                    </button>
+                                    
+                                    {/* Color Picker */}
+                                    <div className="relative">
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); setShowColorPicker(!showColorPicker); }}
+                                            className={`p-2.5 rounded-xl transition-all hover:scale-110 ${
+                                                darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-white/50'
+                                            }`}
+                                            title="Change color"
+                                        >
+                                            <Icon name="Palette" size={18} />
+                                        </button>
+                                        {showColorPicker && (
+                                            <div className={`absolute bottom-full left-0 mb-2 p-3 rounded-2xl shadow-2xl flex gap-2 animate-slideUp z-20 ${
+                                                darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'
+                                            }`}
+                                            onClick={e => e.stopPropagation()}>
+                                                {colors.map(color => (
+                                                    <button
+                                                        key={color}
+                                                        onClick={(e) => handleColorChange(color, e)}
+                                                        className={`w-8 h-8 rounded-full border-2 transition-all hover:scale-125 note-${color} ${
+                                                            note.color === color 
+                                                                ? 'ring-2 ring-indigo-500 ring-offset-2 border-indigo-400' 
+                                                                : darkMode ? 'border-gray-600' : 'border-gray-300'
+                                                        }`}
+                                                        title={color}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <button 
+                                        onClick={handleArchive}
+                                        className={`p-2.5 rounded-xl transition-all hover:scale-110 ${
+                                            darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-white/50'
+                                        }`}
+                                        title={note.archived ? 'Unarchive' : 'Archive'}
+                                    >
+                                        <Icon name={note.archived ? 'ArchiveRestore' : 'Archive'} size={18} />
+                                    </button>
+
+                                    <button 
+                                        onClick={handleTrash}
+                                        className={`p-2.5 rounded-xl transition-all hover:scale-110 text-red-500 ${
+                                            darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-white/50'
+                                        }`}
+                                        title="Move to trash"
+                                    >
+                                        <Icon name="Trash2" size={18} />
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <button 
+                                        onClick={handleRestore}
+                                        className={`p-2.5 rounded-xl transition-all hover:scale-110 text-green-500 ${
+                                            darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-white/50'
+                                        }`}
+                                        title="Restore"
+                                    >
+                                        <Icon name="RotateCcw" size={18} />
+                                    </button>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); setShowDeleteModal(true); }}
+                                        className={`p-2.5 rounded-xl transition-all hover:scale-110 text-red-500 ${
+                                            darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-white/50'
+                                        }`}
+                                        title="Delete permanently"
+                                    >
+                                        <Icon name="Trash2" size={18} />
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Delete Confirmation Modal */}
+                    <Modal
+                        isOpen={showDeleteModal}
+                        onClose={() => setShowDeleteModal(false)}
+                        title="Delete Note"
+                        onConfirm={handleDelete}
+                        confirmText="Delete Forever"
+                        danger
+                    >
+                        <p>Are you sure you want to permanently delete this note? This action cannot be undone.</p>
+                    </Modal>
+                </>
+            );
+        };
+
+        // Note Editor Component
+        const NoteEditor = ({ note, onClose }) => {
+            const { darkMode } = useContext(ThemeContext);
+            const { addNote, updateNote } = useContext(NotesContext);
+            const { addToast } = useContext(ToastContext);
+            const [title, setTitle] = useState(note?.title || '');
+            const [content, setContent] = useState(note?.content || '');
+            const [isSaving, setIsSaving] = useState(false);
+            const autoSaveTimeout = useRef();
+            const titleRef = useRef();
+
+            const MAX_CHARS = 5000;
+            const charCount = content.length;
+            const wordCount = content.split(/\s+/).filter(w => w.length > 0).length;
+            const isOverLimit = charCount > MAX_CHARS;
+
+            // Focus title on open
+            useEffect(() => {
+                if (!note?.id) {
+                    titleRef.current?.focus();
+                }
+            }, [note]);
+
+            // Auto-save for existing notes
+            useEffect(() => {
+                if (!note?.id) return;
+                
+                clearTimeout(autoSaveTimeout.current);
+                autoSaveTimeout.current = setTimeout(() => {
+                    if (title.trim() || content.trim()) {
+                        setIsSaving(true);
+                        updateNote(note.id, { title, content });
+                        setTimeout(() => setIsSaving(false), 500);
+                    }
+                }, 1000);
+
+                return () => clearTimeout(autoSaveTimeout.current);
+            }, [title, content, note?.id]);
+
+            const handleSave = () => {
+                if (!title.trim() && !content.trim()) {
+                    onClose();
+                    return;
+                }
+
+                if (isOverLimit) {
+                    addToast('Note exceeds character limit', 'error');
+                    return;
+                }
+
+                if (note?.id) {
+                    updateNote(note.id, { title, content });
+                    addToast('Note updated', 'success');
+                } else {
+                    addNote({ title, content });
+                    addToast('Note created', 'success');
+                }
+                onClose();
+            };
+
+            // Handle Escape key
+            useEffect(() => {
+                const handleKeydown = (e) => {
+                    if (e.key === 'Escape') {
+                        onClose();
+                    }
+                };
+                window.addEventListener('keydown', handleKeydown);
+                return () => window.removeEventListener('keydown', handleKeydown);
+            }, [onClose]);
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fadeIn" />
+                    <div 
+                        className={`relative w-full max-w-2xl rounded-3xl shadow-2xl animate-scaleIn overflow-hidden ${
+                            darkMode ? 'bg-gray-800' : 'bg-white'
+                        }`}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className={`flex items-center justify-between p-5 border-b ${
+                            darkMode ? 'border-gray-700' : 'border-gray-200'
+                        }`}>
+                            <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                                    darkMode ? 'bg-gray-700' : 'bg-gray-100'
+                                }`}>
+                                    <Icon name={note?.id ? 'Edit3' : 'Plus'} size={20} className="text-indigo-500" />
+                                </div>
+                                <h3 className="text-lg font-bold">
+                                    {note?.id ? 'Edit Note' : 'New Note'}
+                                </h3>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                {isSaving && (
+                                    <span className={`text-sm flex items-center gap-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        <Icon name="Loader2" size={16} className="animate-spin" />
+                                        Saving...
+                                    </span>
+                                )}
+                                <button 
+                                    onClick={onClose}
+                                    className={`p-2 rounded-xl transition-all hover:scale-110 ${
+                                        darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
+                                    }`}
+                                >
+                                    <Icon name="X" size={22} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-5 space-y-4">
+                            <input
+                                ref={titleRef}
+                                type="text"
+                                value={title}
+                                onChange={e => setTitle(e.target.value)}
+                                placeholder="Title"
+                                className={`w-full text-2xl font-bold outline-none bg-transparent ${
+                                    darkMode ? 'placeholder-gray-600 text-white' : 'placeholder-gray-400'
+                                }`}
+                            />
+                            <textarea
+                                value={content}
+                                onChange={e => setContent(e.target.value)}
+                                placeholder="Take a note..."
+                                rows={12}
+                                className={`w-full outline-none bg-transparent resize-none text-lg leading-relaxed ${
+                                    darkMode ? 'placeholder-gray-600 text-gray-200' : 'placeholder-gray-400'
+                                }`}
+                            />
+                        </div>
+
+                        {/* Footer */}
+                        <div className={`flex flex-col sm:flex-row items-center justify-between gap-4 p-5 border-t ${
+                            darkMode ? 'border-gray-700' : 'border-gray-200'
+                        }`}>
+                            <div className={`flex items-center gap-4 text-sm ${isOverLimit ? 'text-red-500' : darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                <span className="flex items-center gap-1.5">
+                                    <Icon name="FileText" size={16} />
+                                    {wordCount} words
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                    <Icon name="Type" size={16} />
+                                    {charCount}/{MAX_CHARS}
+                                </span>
+                                {isOverLimit && (
+                                    <span className="flex items-center gap-1.5 animate-shake">
+                                        <Icon name="AlertTriangle" size={16} />
+                                        Over limit!
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex gap-3">
+                                <button 
+                                    onClick={onClose}
+                                    className={`px-5 py-2.5 rounded-xl font-medium transition-all ${
+                                        darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
+                                    }`}
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    onClick={handleSave}
+                                    disabled={isOverLimit}
+                                    className="px-6 py-2.5 rounded-xl font-semibold bg-gradient-to-r from-indigo-500 to-purple-600 
+                                        text-white hover:from-indigo-600 hover:to-purple-700 transition-all transform hover:scale-105
+                                        disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-lg shadow-indigo-500/30"
+                                >
+                                    {note?.id ? 'Update' : 'Create'} Note
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Create Note Box
+        const CreateNoteBox = ({ onOpen }) => {
+            const { darkMode } = useContext(ThemeContext);
+            
+            return (
+                <div 
+                    onClick={onOpen}
+                    className={`w-full max-w-2xl mx-auto mb-10 p-5 rounded-2xl border-2 border-dashed cursor-pointer
+                        transition-all duration-300 hover:shadow-xl group animate-fadeIn ${
+                        darkMode 
+                            ? 'bg-gray-800/30 border-gray-700 hover:bg-gray-800/60 hover:border-indigo-500' 
+                            : 'bg-white/30 border-gray-300 hover:bg-white hover:border-indigo-400'
+                    }`}
+                >
+                    <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all group-hover:scale-110 ${
+                            darkMode ? 'bg-gray-700 group-hover:bg-indigo-500/20' : 'bg-gray-100 group-hover:bg-indigo-50'
+                        }`}>
+                            <Icon name="Plus" size={26} className="text-indigo-500" />
+                        </div>
+                        <div>
+                            <p className={`font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                Take a note...
+                            </p>
+                            <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                Press <kbd className={`px-1.5 py-0.5 rounded text-xs ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>N</kbd> to create quickly
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Notes Grid
+        const NotesGrid = () => {
+            const { darkMode } = useContext(ThemeContext);
+            const { filteredNotes, loading, activeView, searchQuery } = useContext(NotesContext);
+            const [editingNote, setEditingNote] = useState(null);
+            const [showEditor, setShowEditor] = useState(false);
+
+            // Keyboard shortcut for new note
+            useEffect(() => {
+                const handleKeydown = (e) => {
+                    if (e.key.toLowerCase() === 'n' && !e.ctrlKey && !e.metaKey && 
+                        document.activeElement.tagName !== 'INPUT' && 
+                        document.activeElement.tagName !== 'TEXTAREA') {
+                        e.preventDefault();
+                        setEditingNote(null);
+                        setShowEditor(true);
+                    }
+                };
+                window.addEventListener('keydown', handleKeydown);
+                return () => window.removeEventListener('keydown', handleKeydown);
+            }, []);
+
+            const handleEdit = (note) => {
+                setEditingNote(note);
+                setShowEditor(true);
+            };
+
+            const handleCloseEditor = () => {
+                setEditingNote(null);
+                setShowEditor(false);
+            };
+
+            const viewConfig = {
+                notes: { 
+                    title: 'My Notes', 
+                    icon: 'Lightbulb',
+                    empty: { icon: 'Lightbulb', title: 'No notes yet', description: 'Click the box above or press N to create your first note' }
+                },
+                pinned: { 
+                    title: 'Pinned Notes', 
+                    icon: 'Pin',
+                    empty: { icon: 'Pin', title: 'No pinned notes', description: 'Pin your important notes to see them here' }
+                },
+                archived: { 
+                    title: 'Archived Notes', 
+                    icon: 'Archive',
+                    empty: { icon: 'Archive', title: 'No archived notes', description: 'Archive notes you want to keep but hide from main view' }
+                },
+                trash: { 
+                    title: 'Trash', 
+                    icon: 'Trash2',
+                    empty: { icon: 'Trash2', title: 'Trash is empty', description: 'Notes you delete will appear here' }
+                }
+            };
+
+            const currentView = viewConfig[activeView];
+
+            return (
+                <div className="pt-20 lg:pl-72 min-h-screen">
+                    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+                        {/* View Header */}
+                        <div className="flex items-center gap-4 mb-8 animate-fadeIn">
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
+                                darkMode ? 'bg-gray-800' : 'bg-white shadow-lg'
+                            }`}>
+                                <Icon name={currentView.icon} size={28} className="text-indigo-500" />
+                            </div>
+                            <div>
+                                <h1 className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {currentView.title}
+                                </h1>
+                                {searchQuery && (
+                                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        Showing results for "{searchQuery}"
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Create Note Box */}
+                        {activeView === 'notes' && (
+                            <CreateNoteBox onOpen={() => { setEditingNote(null); setShowEditor(true); }} />
+                        )}
+
+                        {/* Loading State */}
+                        {loading ? (
+                            <div className="masonry-grid">
+                                {[...Array(6)].map((_, i) => <SkeletonNote key={i} />)}
+                            </div>
+                        ) : filteredNotes.length === 0 ? (
+                            <EmptyState {...currentView.empty} />
+                        ) : (
+                            <>
+                                {/* Pinned Section (only in notes view) */}
+                                {activeView === 'notes' && filteredNotes.some(n => n.pinned) && (
+                                    <>
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <Icon name="Pin" size={16} className="text-indigo-500" />
+                                            <p className={`text-sm font-semibold uppercase tracking-wider ${
+                                                darkMode ? 'text-gray-500' : 'text-gray-400'
+                                            }`}>
+                                                Pinned
+                                            </p>
+                                        </div>
+                                        <div className="masonry-grid mb-10">
+                                            {filteredNotes.filter(n => n.pinned).map(note => (
+                                                <NoteCard key={note.id} note={note} onEdit={handleEdit} />
+                                            ))}
+                                        </div>
+                                        
+                                        {filteredNotes.some(n => !n.pinned) && (
+                                            <div className="flex items-center gap-2 mb-4">
+                                                <Icon name="Clock" size={16} className={darkMode ? 'text-gray-500' : 'text-gray-400'} />
+                                                <p className={`text-sm font-semibold uppercase tracking-wider ${
+                                                    darkMode ? 'text-gray-500' : 'text-gray-400'
+                                                }`}>
+                                                    Others
+                                                </p>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                {/* Notes Grid */}
+                                <div className="masonry-grid">
+                                    {(activeView === 'notes' 
+                                        ? filteredNotes.filter(n => !n.pinned)
+                                        : filteredNotes
+                                    ).map(note => (
+                                        <NoteCard key={note.id} note={note} onEdit={handleEdit} />
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    {/* Note Editor Modal */}
+                    {showEditor && (
+                        <NoteEditor note={editingNote} onClose={handleCloseEditor} />
+                    )}
+                </div>
+            );
+        };
+
+        // Main App Component
+        const App = () => {
+            const { darkMode } = useContext(ThemeContext);
+            const [sidebarOpen, setSidebarOpen] = useState(false);
+
+            return (
+                <NotesProvider>
+                    <div className={`min-h-screen transition-colors duration-300 ${
+                        darkMode 
+                            ? 'bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100' 
+                            : 'bg-gradient-to-br from-indigo-50 via-white to-purple-50 text-gray-900'
+                    }`}>
+                        <Navbar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+                        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+                        <NotesGrid />
+                    </div>
+                </NotesProvider>
+            );
+        };
+
+        // Root with Providers
+        const Root = () => {
+            return (
+                <ThemeProvider>
+                    <ToastProvider>
+                        <App />
+                    </ToastProvider>
+                </ThemeProvider>
+            );
+        };
+
+        // Render
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<Root />);
+    </script>
+</body>
+</html>
